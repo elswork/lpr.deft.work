@@ -1,0 +1,8 @@
+/target/
+.venv/
+__pycache__/
+*.py[cod]
+models/*.onnx
+models/*.pt
+models/*.yaml
+.DS_Store
