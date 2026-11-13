@@ -51,6 +51,7 @@ pub struct BoundingBox {
     pub x2: f32,
     pub y2: f32,
     pub confidence: f32,
+    #[allow(dead_code)]
     pub class_id: usize,
 }
 
@@ -84,10 +85,6 @@ impl PlateDetector {
             input_name,
             config,
         })
-    }
-
-    pub fn config(&self) -> &DetectorConfig {
-        &self.config
     }
 
     /// Runs plate detection on an RGB frame and returns NMS-filtered bounding boxes

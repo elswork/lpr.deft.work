@@ -10,7 +10,7 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 use image::RgbImage;
 use ort::{
     environment::Environment,
-    execution_providers::CPUExecutionProvider,
+    ep,
     session::{builder::GraphOptimizationLevel, Session},
 };
 use rayon::prelude::*;
@@ -260,67 +260,74 @@ fn rx_drain_one_hint() {}
 fn build_ort_session(
     env: &Environment,
     model_path: &Path,
-    ep: ExecutionProviderKind,
+    ep_kind: ExecutionProviderKind,
     intra_threads: usize,
 ) -> Result<Session> {
-    let mut builder = Session::builder(env)?
-        .with_optimization_level(GraphOptimizationLevel::Level3)?
-        .with_intra_threads(intra_threads)?;
+    let mut builder = Session::builder(env)
+        .map_err(|e| anyhow::anyhow!("{e}"))?
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .map_err(|e| anyhow::anyhow!("{e}"))?
+        .with_intra_threads(intra_threads)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let providers = collect_execution_providers(ep);
-    builder = builder.with_execution_providers(providers)?;
+    let providers = collect_execution_providers(ep_kind);
+    builder = builder
+        .with_execution_providers(providers)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    let session = builder.commit_from_file(model_path)?;
+    let session = builder
+        .commit_from_file(model_path)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(session)
 }
 
 fn collect_execution_providers(
-    ep: ExecutionProviderKind,
-) -> Vec<ort::execution_providers::ExecutionProviderDispatch> {
+    ep_kind: ExecutionProviderKind,
+) -> Vec<ep::ExecutionProviderDispatch> {
     let mut providers = Vec::new();
 
-    match ep {
+    match ep_kind {
         ExecutionProviderKind::Cpu => {
-            providers.push(CPUExecutionProvider::default().build());
+            providers.push(ep::CPU::default().build());
         }
         ExecutionProviderKind::Cuda => {
             #[cfg(feature = "cuda")]
-            providers.push(ort::execution_providers::CUDAExecutionProvider::default().build());
+            providers.push(ep::CUDA::default().build());
             #[cfg(not(feature = "cuda"))]
             warn!("CUDA EP requested, but binary was compiled without 'cuda' feature; falling back to CPU");
-            providers.push(CPUExecutionProvider::default().build());
+            providers.push(ep::CPU::default().build());
         }
         ExecutionProviderKind::TensorRt => {
             #[cfg(feature = "tensorrt")]
-            providers.push(ort::execution_providers::TensorRTExecutionProvider::default().build());
+            providers.push(ep::TensorRT::default().build());
             #[cfg(not(feature = "tensorrt"))]
             warn!("TensorRT EP requested, but binary was compiled without 'tensorrt' feature; falling back to CPU");
-            providers.push(CPUExecutionProvider::default().build());
+            providers.push(ep::CPU::default().build());
         }
         ExecutionProviderKind::DirectMl => {
             #[cfg(feature = "directml")]
-            providers.push(ort::execution_providers::DirectMLExecutionProvider::default().build());
+            providers.push(ep::DirectML::default().build());
             #[cfg(not(feature = "directml"))]
             warn!("DirectML EP requested, but binary was compiled without 'directml' feature; falling back to CPU");
-            providers.push(CPUExecutionProvider::default().build());
+            providers.push(ep::CPU::default().build());
         }
         ExecutionProviderKind::CoreMl => {
             #[cfg(feature = "coreml")]
-            providers.push(ort::execution_providers::CoreMLExecutionProvider::default().build());
+            providers.push(ep::CoreML::default().build());
             #[cfg(not(feature = "coreml"))]
             warn!("CoreML EP requested, but binary was compiled without 'coreml' feature; falling back to CPU");
-            providers.push(CPUExecutionProvider::default().build());
+            providers.push(ep::CPU::default().build());
         }
         ExecutionProviderKind::Auto => {
             #[cfg(feature = "tensorrt")]
-            providers.push(ort::execution_providers::TensorRTExecutionProvider::default().build());
+            providers.push(ep::TensorRT::default().build());
             #[cfg(feature = "cuda")]
-            providers.push(ort::execution_providers::CUDAExecutionProvider::default().build());
+            providers.push(ep::CUDA::default().build());
             #[cfg(feature = "directml")]
-            providers.push(ort::execution_providers::DirectMLExecutionProvider::default().build());
+            providers.push(ep::DirectML::default().build());
             #[cfg(feature = "coreml")]
-            providers.push(ort::execution_providers::CoreMLExecutionProvider::default().build());
-            providers.push(CPUExecutionProvider::default().build());
+            providers.push(ep::CoreML::default().build());
+            providers.push(ep::CPU::default().build());
         }
     }
 
